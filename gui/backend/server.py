@@ -11,6 +11,7 @@ from validator import Validator
 from core.observability.observer import Observer
 from api_proxy import get_status, get_progress, get_phases, get_log
 from core.autonomy.autonomy_manager import AutonomyManager
+from core.autonomy.learning_layer import LearningLayer
 
 BASE_DIR = os.path.dirname(__file__)
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
@@ -22,6 +23,7 @@ validator = Validator()
 # Stage 10: Observability Activation
 observer = Observer()
 autonomy_manager = AutonomyManager()
+learning_layer = LearningLayer()
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -30,7 +32,10 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/progress": self.respond_json(get_progress())
         elif self.path == "/api/phases": self.respond_json(get_phases())
         elif self.path == "/api/log": self.respond_json(get_log())
-        elif self.path == "/api/autonomy_status": self.respond_json({"enabled": autonomy_manager.get_status()})
+        elif self.path == "/api/autonomy_status": self.respond_json({
+            "gui_mode": autonomy_manager.get_current_mode(),
+            "internal_config": autonomy_manager.get_internal_config()
+        })
         elif self.path == "/" or self.path == "/index.html": self.serve_file("index.html", "text/html")
         elif self.path.endswith(".css"): self.serve_file(self.path.lstrip("/"), "text/css")
         elif self.path.endswith(".js"): self.serve_file(self.path.lstrip("/"), "application/javascript")
@@ -45,10 +50,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 intent_packet = json.loads(post_data)
                 
-                # Handle TOGGLE_AUTONOMY intent
-                if intent_packet.get("intent") == "TOGGLE_AUTONOMY":
-                    enabled = intent_packet.get("params", {}).get("enabled", False)
-                    result = autonomy_manager.set_status(enabled)
+                # Handle SET_AUTONOMY_MODE intent
+                if intent_packet.get("intent") == "SET_AUTONOMY_MODE":
+                    mode = intent_packet.get("params", {}).get("mode", "E2")
+                    result = autonomy_manager.set_mode(mode)
                     return self.respond_json({"ok": True, "result": result})
                 
                 # 1. Basic Envelope Validation
@@ -92,6 +97,17 @@ class Handler(BaseHTTPRequestHandler):
                     "stage": execution_report["stage"],
                     "status": execution_report["status"]
                 })
+                
+                # 7.1 Learning Layer: Passive recording
+                if autonomy_manager.get_internal_config()["learning"]:
+                    event_map = {
+                        "PLAN": "approved_plan",
+                        "DIFF": "approved_diff",
+                        "APPLY": "operator_acceptance"
+                    }
+                    event_type = event_map.get(execution_report["stage"])
+                    if event_type:
+                        learning_layer.record_event(event_type, execution_report)
                 
                 # 8. Audit Log Execution
                 print(f"[AUDIT] {execution_report['timestamp']} | {execution_report['execution_id']} | Status: {execution_report['status']}")

@@ -24,12 +24,15 @@ class FailSafe:
             if state.get("autonomy_enabled"):
                 allowed_stages = ["ANALYZE", "PLAN", "DIFF"]
                 if current_stage not in allowed_stages:
-                    # Violation detected: Auto-disable autonomy
+                    # Violation detected: Fallback to E2
+                    state["gui_mode"] = "E2"
+                    state["internal_mode"] = "E2"
                     state["autonomy_enabled"] = False
+                    state["learning_enabled"] = False
                     state["violation_detected"] = True
                     state["violation_reason"] = f"Autonomy active in forbidden stage: {current_stage}"
                     self.state_path.write_text(json.dumps(state, indent=2))
-                    print(f"[FAILSAFE] Autonomy disabled due to violation: {current_stage}")
+                    print(f"[FAILSAFE] Fallback to E2 due to violation: {current_stage}")
                     return False
         except:
             pass

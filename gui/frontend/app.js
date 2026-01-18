@@ -50,14 +50,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const stopBtn = document.getElementById('stopBtn');
     if (stopBtn) stopBtn.onclick = () => sendIntent('STOP_EXECUTION');
 
-    const autonomyToggle = document.getElementById('autonomy_toggle');
-    if (autonomyToggle) {
-        autonomyToggle.onchange = (e) => {
-            sendIntent('TOGGLE_AUTONOMY', { enabled: e.target.checked });
+    const modeSwitch = document.getElementById('autonomy_mode_switch');
+    if (modeSwitch) {
+        modeSwitch.onchange = (e) => {
+            const newMode = e.target.value;
+            if (confirm(`Switch to ${newMode} mode?`)) {
+                sendIntent('SET_AUTONOMY_MODE', { mode: newMode });
+            } else {
+                // Revert selection if cancelled
+                get('/api/autonomy_status').then(data => {
+                    if (data) modeSwitch.value = data.gui_mode;
+                });
+            }
         };
         // Initial sync
         get('/api/autonomy_status').then(data => {
-            if (data) autonomyToggle.checked = data.enabled;
+            if (data) modeSwitch.value = data.gui_mode || 'E2';
         });
     }
     
