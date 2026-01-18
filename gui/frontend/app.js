@@ -1,5 +1,19 @@
 async function get(u){const r=await fetch(u);return r.ok?r.json():null}
-async function post(u){const r=await fetch(u,{method:'POST'});return r.json()}
+
+async function sendIntent(intent, params = {}) {
+    const payload = {
+        command_id: crypto.randomUUID(),
+        intent: intent,
+        timestamp: new Date().toISOString(),
+        params: params
+    };
+    const r = await fetch('/api/intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return r.json();
+}
 
 async function refresh(){
     const s=await get('/api/status'),p=await get('/api/progress'),ph=await get('/api/phases'),l=await get('/api/log');
@@ -25,20 +39,23 @@ async function refresh(){
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const btns = {
-        'startBtn': '/api/start',
-        'stopBtn': '/api/stop'
-    };
-    for (const id in btns) {
-        const el = document.getElementById(id);
-        if (el) el.onclick = () => post(btns[id]);
+    const startBtn = document.getElementById('startBtn');
+    if (startBtn) {
+        startBtn.onclick = () => {
+            const taskText = document.getElementById('taskText')?.value || "";
+            sendIntent('START_ANALYSIS', { task_text: taskText });
+        };
     }
+
+    const stopBtn = document.getElementById('stopBtn');
+    if (stopBtn) stopBtn.onclick = () => sendIntent('STOP_EXECUTION');
     
-    // Result section buttons by text content as they don't have IDs in index.html
     const resultBtns = document.querySelectorAll('.result .buttons button');
     resultBtns.forEach(btn => {
-        if (btn.textContent.includes('Применить изменения')) btn.onclick = () => post('/api/apply');
-        if (btn.textContent.includes('Откатить')) btn.onclick = () => post('/api/rollback');
+        if (btn.textContent.includes('Применить изменения')) btn.onclick = () => sendIntent('APPLY_DIFF');
+        if (btn.textContent.includes('Откатить')) btn.onclick = () => sendIntent('ROLLBACK');
+        if (btn.textContent.includes('Посмотреть Diff')) btn.onclick = () => sendIntent('REQUEST_DIFF');
+        if (btn.textContent.includes('Отчёт')) btn.onclick = () => sendIntent('REQUEST_PLAN');
     });
 });
 
