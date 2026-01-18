@@ -121,8 +121,13 @@ class Controller:
         else:
             result = f"Rejected: {decision['reason']}"
             
-        # Get advisor output
-        advisor_data = run_advisor(user_input, state.get("stage"), intent)
+        # Get advisor output with extra context for LLM
+        extra_context = {
+            "plan_text": state.get("current_plan"),
+            "diff_text": state.get("current_diff"),
+            "audit_logs": str(self.audit_trail.records[-5:]) # Last 5 records
+        }
+        advisor_data = run_advisor(user_input, state.get("stage"), intent, extra_context)
         advisor_output = f"Advisor: {advisor_data['analysis']}"
         
         return state, result, advisor_output
