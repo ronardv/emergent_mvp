@@ -24,6 +24,18 @@ async function refresh(){
         if (badge) badge.style.display = as.sandbox_mode ? 'inline' : 'none';
         if (toggle) toggle.checked = as.sandbox_mode;
         document.body.classList.toggle('sandbox-active', as.sandbox_mode);
+
+        const llmToggle = document.getElementById('llm_sandbox_toggle');
+        if (llmToggle) llmToggle.checked = as.llm_sandbox_enabled;
+        
+        const advisoryContent = document.getElementById('llmAdvisoryContent');
+        if (advisoryContent && as.llm_sandbox_enabled) {
+            get('/api/sandbox/analyze').then(data => {
+                if (data && data.analysis) advisoryContent.textContent = data.analysis;
+            });
+        } else if (advisoryContent) {
+            advisoryContent.textContent = 'LLM Sandbox Disabled';
+        }
     }
 
     const stageEl = document.getElementById('currentStage');
@@ -78,6 +90,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    const llmSandboxToggle = document.getElementById('llm_sandbox_toggle');
+    if (llmSandboxToggle) {
+        llmSandboxToggle.onchange = (e) => {
+            const enabled = e.target.checked;
+            if (enabled) {
+                if (confirm("Enable LLM Sandbox (Advisory Mode)? This will send context to LLM for analysis.")) {
+                    sendIntent('TOGGLE_LLM_SANDBOX', { enabled: true });
+                } else {
+                    e.target.checked = false;
+                }
+            } else {
+                sendIntent('TOGGLE_LLM_SANDBOX', { enabled: false });
+            }
+        };
+    }
+
     const sandboxToggle = document.getElementById('sandbox_toggle');
     if (sandboxToggle) {
         sandboxToggle.onchange = (e) => {

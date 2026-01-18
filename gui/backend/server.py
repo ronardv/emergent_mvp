@@ -13,6 +13,7 @@ from api_proxy import get_status, get_progress, get_phases, get_log
 from core.autonomy.autonomy_manager import AutonomyManager
 from core.autonomy.learning_layer import LearningLayer
 from core.runtime.sandbox_context import SandboxContext
+from core.sandbox.llm_sandbox import LLMSandbox
 
 BASE_DIR = os.path.dirname(__file__)
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
@@ -26,6 +27,7 @@ observer = Observer()
 autonomy_manager = AutonomyManager()
 learning_layer = LearningLayer()
 sandbox_context = SandboxContext()
+llm_sandbox = LLMSandbox()
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -37,8 +39,23 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/autonomy_status": self.respond_json({
             "gui_mode": autonomy_manager.get_current_mode(),
             "internal_config": autonomy_manager.get_internal_config(),
-            "sandbox_mode": sandbox_context.is_enabled()
+            "sandbox_mode": sandbox_context.is_enabled(),
+            "llm_sandbox_enabled": llm_sandbox.is_enabled()
         })
+        elif self.path == "/api/sandbox/analyze":
+            if not llm_sandbox.is_enabled():
+                self.respond_json({"error": "LLM Sandbox disabled"})
+            else:
+                # Prepare read-only context snapshot
+                current_state = get_status()
+                context = {
+                    "task_text": "Current GUI Task", # In a real app, this would come from state
+                    "current_stage": current_state.get("stage"),
+                    "plan_text": current_state.get("current_plan"),
+                    "diff_text": current_state.get("current_diff")
+                }
+                result = llm_sandbox.analyze_context(context)
+                self.respond_json(result)
         elif self.path == "/" or self.path == "/index.html": self.serve_file("index.html", "text/html")
         elif self.path.endswith(".css"): self.serve_file(self.path.lstrip("/"), "text/css")
         elif self.path.endswith(".js"): self.serve_file(self.path.lstrip("/"), "application/javascript")
@@ -69,6 +86,13 @@ class Handler(BaseHTTPRequestHandler):
                 if intent_packet.get("intent") == "PROMOTE_SANDBOX":
                     result = sandbox_context.promote_to_production()
                     print(f"[AUDIT] {intent_packet['timestamp']} | PROMOTION | Result: {result['status']}")
+                    return self.respond_json({"ok": True, "result": result})
+                
+                # Handle TOGGLE_LLM_SANDBOX intent
+                if intent_packet.get("intent") == "TOGGLE_LLM_SANDBOX":
+                    enabled = intent_packet.get("params", {}).get("enabled", False)
+                    result = llm_sandbox.set_enabled(enabled)
+                    print(f"[AUDIT] {intent_packet['timestamp']} | LLM_SANDBOX_TOGGLE | Enabled: {enabled}")
                     return self.respond_json({"ok": True, "result": result})
                 
                 # 1. Basic Envelope Validation

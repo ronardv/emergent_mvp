@@ -1,9 +1,4 @@
 {
-  "gui_mode": "E3",
-  "internal_mode": "E3_MAX_PLUS",
-  "autonomy_enabled": true,
-  "learning_enabled": true,
-  "policy_version": "1.1",
-  "updated_at": "2026-01-18T08:27:19.749573Z",
-  "sandbox_mode": true
+  "llm_sandbox_enabled": true,
+  "llm_sandbox_updated_at": "2026-01-18T08:49:55.498676Z"
 }
