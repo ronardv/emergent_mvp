@@ -1,21 +1,18 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
-import uuid
-from datetime import datetime
+import sys
+
+# Add parent directory to path to import Controller
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from controller import Controller
 from api_proxy import get_status, get_progress, get_phases, get_log
 
 BASE_DIR = os.path.dirname(__file__)
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
 
-ALLOWED_INTENTS = {
-    "START_ANALYSIS": {"allowed_stage": ["IDLE", "INIT"]},
-    "STOP_EXECUTION": {"allowed_stage": ["ANALYZE", "PLAN", "DIFF", "APPLY"]},
-    "REQUEST_PLAN": {"allowed_stage": ["ANALYZE_COMPLETE"]},
-    "REQUEST_DIFF": {"allowed_stage": ["PLAN_COMPLETE"]},
-    "APPLY_DIFF": {"allowed_stage": ["DIFF_COMPLETE"]},
-    "ROLLBACK": {"allowed_stage": ["APPLY_COMPLETE"]}
-}
+# Initialize Controller as the single authority
+controller = Controller()
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -36,33 +33,27 @@ class Handler(BaseHTTPRequestHandler):
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             try:
-                data = json.loads(post_data)
-                # 1. Validate Envelope
+                intent_packet = json.loads(post_data)
+                
+                # 1. Basic Envelope Validation
                 required = ["command_id", "intent", "timestamp", "params"]
-                if not all(k in data for k in required):
-                    return self.respond_error(400, "Missing required fields")
+                if not all(k in intent_packet for k in required):
+                    return self.respond_error(400, "Missing required fields in intent envelope")
 
-                intent_name = data["intent"]
-                if intent_name not in ALLOWED_INTENTS:
-                    return self.respond_error(400, f"Unknown intent: {intent_name}")
+                # 2. Get Current State
+                current_state = get_status() # stage is retrieved from here
 
-                # 2. Validate Stage
-                current_stage = get_status().get("stage", "IDLE")
-                allowed_stages = ALLOWED_INTENTS[intent_name]["allowed_stage"]
-                if current_stage not in allowed_stages:
-                    return self.respond_error(403, f"Intent {intent_name} not allowed in stage {current_stage}")
-
-                # 3. Validate Params (START_ANALYSIS specific)
-                if intent_name == "START_ANALYSIS":
-                    task_text = data["params"].get("task_text")
-                    if not task_text or len(task_text) < 1:
-                        return self.respond_error(400, "Invalid params: task_text required")
+                # 3. Consult Decision Core (Single Authority)
+                decision = controller.decide(intent_packet, current_state)
 
                 # 4. Audit Log
-                print(f"[AUDIT] {data['timestamp']} | {data['command_id']} | {intent_name} | Params Hash: {hash(str(data['params']))}")
+                print(f"[AUDIT] {intent_packet['timestamp']} | {intent_packet['command_id']} | {intent_packet['intent']} | Decision: {decision['accepted']} | Next Stage: {decision['next_stage']}")
 
-                # 5. Respond (Logic stub)
-                self.respond_json({"ok": True, "status": "accepted", "command_id": data["command_id"]})
+                # 5. Respond with Decision Packet
+                if decision["accepted"]:
+                    self.respond_json(decision)
+                else:
+                    self.respond_error(403, decision["reason"])
 
             except Exception as e:
                 self.respond_error(500, str(e))
