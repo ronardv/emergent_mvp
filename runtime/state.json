@@ -4,5 +4,6 @@
   "autonomy_enabled": true,
   "learning_enabled": true,
   "policy_version": "1.1",
-  "updated_at": "2026-01-18T08:27:19.749573Z"
+  "updated_at": "2026-01-18T08:27:19.749573Z",
+  "sandbox_mode": true
 }

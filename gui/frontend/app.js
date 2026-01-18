@@ -16,7 +16,16 @@ async function sendIntent(intent, params = {}) {
 }
 
 async function refresh(){
-    const s=await get('/api/status'),p=await get('/api/progress'),ph=await get('/api/phases'),l=await get('/api/log');
+    const s=await get('/api/status'),p=await get('/api/progress'),ph=await get('/api/phases'),l=await get('/api/log'),as=await get('/api/autonomy_status');
+    
+    if (as) {
+        const badge = document.getElementById('sandboxBadge');
+        const toggle = document.getElementById('sandbox_toggle');
+        if (badge) badge.style.display = as.sandbox_mode ? 'inline' : 'none';
+        if (toggle) toggle.checked = as.sandbox_mode;
+        document.body.classList.toggle('sandbox-active', as.sandbox_mode);
+    }
+
     const stageEl = document.getElementById('currentStage');
     if (stageEl) stageEl.textContent=s?.stage||'НЕТ ДАННЫХ';
     const progressEl = document.getElementById('progressBar');
@@ -69,9 +78,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    const sandboxToggle = document.getElementById('sandbox_toggle');
+    if (sandboxToggle) {
+        sandboxToggle.onchange = (e) => {
+            const enabled = e.target.checked;
+            if (enabled) {
+                if (confirm("Sandbox mode enabled. Changes will not affect production.")) {
+                    sendIntent('TOGGLE_SANDBOX', { enabled: true });
+                } else {
+                    e.target.checked = false;
+                }
+            } else {
+                sendIntent('TOGGLE_SANDBOX', { enabled: false });
+            }
+        };
+    }
+
     const resultBtns = document.querySelectorAll('.result .buttons button');
     resultBtns.forEach(btn => {
-        if (btn.textContent.includes('Применить изменения')) btn.onclick = () => sendIntent('APPLY_DIFF');
+        if (btn.textContent.includes('Применить изменения')) {
+            btn.onclick = () => {
+                get('/api/autonomy_status').then(data => {
+                    if (data && data.sandbox_mode) {
+                        if (confirm("Apply sandbox results to production?")) {
+                            sendIntent('PROMOTE_SANDBOX');
+                        }
+                    } else {
+                        sendIntent('APPLY_DIFF');
+                    }
+                });
+            };
+        }
         if (btn.textContent.includes('Откатить')) btn.onclick = () => sendIntent('ROLLBACK');
         if (btn.textContent.includes('Посмотреть Diff')) btn.onclick = () => sendIntent('REQUEST_DIFF');
         if (btn.textContent.includes('Отчёт')) btn.onclick = () => sendIntent('REQUEST_PLAN');

@@ -12,6 +12,7 @@ from core.observability.observer import Observer
 from api_proxy import get_status, get_progress, get_phases, get_log
 from core.autonomy.autonomy_manager import AutonomyManager
 from core.autonomy.learning_layer import LearningLayer
+from core.runtime.sandbox_context import SandboxContext
 
 BASE_DIR = os.path.dirname(__file__)
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
@@ -24,6 +25,7 @@ validator = Validator()
 observer = Observer()
 autonomy_manager = AutonomyManager()
 learning_layer = LearningLayer()
+sandbox_context = SandboxContext()
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -34,7 +36,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/log": self.respond_json(get_log())
         elif self.path == "/api/autonomy_status": self.respond_json({
             "gui_mode": autonomy_manager.get_current_mode(),
-            "internal_config": autonomy_manager.get_internal_config()
+            "internal_config": autonomy_manager.get_internal_config(),
+            "sandbox_mode": sandbox_context.is_enabled()
         })
         elif self.path == "/" or self.path == "/index.html": self.serve_file("index.html", "text/html")
         elif self.path.endswith(".css"): self.serve_file(self.path.lstrip("/"), "text/css")
@@ -54,6 +57,18 @@ class Handler(BaseHTTPRequestHandler):
                 if intent_packet.get("intent") == "SET_AUTONOMY_MODE":
                     mode = intent_packet.get("params", {}).get("mode", "E2")
                     result = autonomy_manager.set_mode(mode)
+                    return self.respond_json({"ok": True, "result": result})
+                
+                # Handle TOGGLE_SANDBOX intent
+                if intent_packet.get("intent") == "TOGGLE_SANDBOX":
+                    enabled = intent_packet.get("params", {}).get("enabled", False)
+                    result = sandbox_context.set_enabled(enabled)
+                    return self.respond_json({"ok": True, "result": result})
+                
+                # Handle PROMOTE_SANDBOX intent
+                if intent_packet.get("intent") == "PROMOTE_SANDBOX":
+                    result = sandbox_context.promote_to_production()
+                    print(f"[AUDIT] {intent_packet['timestamp']} | PROMOTION | Result: {result['status']}")
                     return self.respond_json({"ok": True, "result": result})
                 
                 # 1. Basic Envelope Validation
@@ -89,7 +104,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self.respond_error(500, f"CONSTITUTIONAL_HALT: {const_check['reason']}")
 
                 # 6. Execution Isolation Layer
+                # Tag with sandbox status
+                is_sandbox = sandbox_context.is_enabled()
+                decision["sandbox"] = is_sandbox
+                
                 execution_report = executor.execute(decision)
+                execution_report["sandbox"] = is_sandbox
                 
                 # 7. Observability: Record state change
                 observer.record({
