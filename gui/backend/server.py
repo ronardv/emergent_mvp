@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
-from api_proxy import get_status, get_progress, get_phases, get_log, handle_command
+from api_proxy import get_status, get_progress, get_phases, get_log
 
 BASE_DIR = os.path.dirname(__file__)
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
@@ -34,21 +34,12 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        if self.path == "/api/command":
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            try:
-                data = json.loads(post_data)
-                command = data.get("command")
-                if command in ["INIT", "ANALYZE", "PLAN", "DIFF", "APPLY", "ROLLBACK"]:
-                    result = handle_command(data)
-                    self.respond_json(result)
-                else:
-                    self.send_response(400)
-                    self.end_headers()
-            except Exception:
-                self.send_response(500)
-                self.end_headers()
+        if self.path in ["/api/start", "/api/stop", "/api/apply", "/api/rollback"]:
+            # Logic not implemented yet, return 501 as per requirements
+            self.send_response(501)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": False, "message": "Not implemented"}).encode())
         else:
             self.send_response(404)
             self.end_headers()
