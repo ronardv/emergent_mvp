@@ -3,16 +3,18 @@ import json
 import os
 import sys
 
-# Add parent directory to path to import Controller
+# Add parent directory to path to import Controller and Executor
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from controller import Controller
+from executor import Executor
 from api_proxy import get_status, get_progress, get_phases, get_log
 
 BASE_DIR = os.path.dirname(__file__)
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
 
-# Initialize Controller as the single authority
+# Initialize components
 controller = Controller()
+executor = Executor()
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -41,19 +43,29 @@ class Handler(BaseHTTPRequestHandler):
                     return self.respond_error(400, "Missing required fields in intent envelope")
 
                 # 2. Get Current State
-                current_state = get_status() # stage is retrieved from here
+                current_state = get_status()
 
                 # 3. Consult Decision Core (Single Authority)
                 decision = controller.decide(intent_packet, current_state)
 
-                # 4. Audit Log
+                # 4. Audit Log Decision
                 print(f"[AUDIT] {intent_packet['timestamp']} | {intent_packet['command_id']} | {intent_packet['intent']} | Decision: {decision['accepted']} | Next Stage: {decision['next_stage']}")
 
-                # 5. Respond with Decision Packet
-                if decision["accepted"]:
-                    self.respond_json(decision)
-                else:
-                    self.respond_error(403, decision["reason"])
+                if not decision["accepted"]:
+                    return self.respond_error(403, decision["reason"])
+
+                # 5. Execution Isolation Layer (Only if decision is accepted)
+                execution_report = executor.execute(decision)
+                
+                # 6. Audit Log Execution
+                print(f"[AUDIT] {execution_report['timestamp']} | {execution_report['execution_id']} | Stage: {execution_report['stage']} | Status: {execution_report['status']}")
+
+                # 7. Respond with combined report
+                self.respond_json({
+                    "ok": True,
+                    "decision": decision,
+                    "execution": execution_report
+                })
 
             except Exception as e:
                 self.respond_error(500, str(e))
