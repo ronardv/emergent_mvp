@@ -25,16 +25,26 @@ async function refresh(){
         if (toggle) toggle.checked = as.sandbox_mode;
         document.body.classList.toggle('sandbox-active', as.sandbox_mode);
 
+        // Handle Verification Mode UI
+        const isVerification = as.gui_mode === 'sandbox_advisory';
+        document.body.classList.toggle('verification-mode', isVerification);
+
         const llmToggle = document.getElementById('llm_sandbox_toggle');
         if (llmToggle) llmToggle.checked = as.llm_sandbox_enabled;
         
         const advisoryContent = document.getElementById('llmAdvisoryContent');
-        if (advisoryContent && as.llm_sandbox_enabled) {
+        const contextData = document.getElementById('contextData');
+
+        if (as.llm_sandbox_enabled) {
             get('/api/sandbox/analyze').then(data => {
                 if (data && data.analysis) advisoryContent.textContent = data.analysis;
+                if (data && data.context && contextData) {
+                    contextData.textContent = JSON.stringify(data.context, null, 2);
+                }
             });
-        } else if (advisoryContent) {
-            advisoryContent.textContent = 'LLM Sandbox Disabled';
+        } else {
+            if (advisoryContent) advisoryContent.textContent = 'LLM Sandbox Disabled';
+            if (contextData) contextData.textContent = 'LLM Sandbox Disabled';
         }
     }
 

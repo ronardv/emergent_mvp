@@ -1,4 +1,6 @@
 {
   "llm_sandbox_enabled": true,
-  "llm_sandbox_updated_at": "2026-01-18T08:49:55.498676Z"
+  "llm_sandbox_updated_at": "2026-01-18T08:49:55.498676Z",
+  "stage": "VERIFICATION",
+  "gui_mode": "sandbox_advisory"
 }

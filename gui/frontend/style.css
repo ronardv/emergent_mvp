@@ -7,3 +7,8 @@ body{margin:0;background:#0d0f12;color:#e5e7eb;font-family:monospace;font-size:1
 .advisory-panel { background: #1a1d23; padding: 12px; border-left: 2px solid #3b82f6; overflow-y: auto; max-height: 220px; }
 #llmAdvisoryContent { font-size: 12px; line-height: 1.4; color: #93c5fd; white-space: pre-wrap; }
 .llm-sandbox-control { margin-left: 10px; font-size: 12px; }
+
+.context-preview { background: #111318; padding: 12px; border: 1px dashed #444; margin-bottom: 16px; }
+#contextData { font-size: 11px; color: #888; overflow: auto; max-height: 100px; }
+.verification-mode .execution-controls { display: none !important; }
+.verification-mode .advisory-panel { border-left: 2px solid #10b981; }

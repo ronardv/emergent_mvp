@@ -15,6 +15,7 @@ class LLMAdvisor:
         Safe analysis of the provided context. 
         Context is a read-only snapshot.
         """
+        start_time = datetime.utcnow()
         # Sanitize and prepare prompt based on allowed context
         allowed_keys = ["task_text", "current_stage", "plan_text", "diff_text", "audit_logs"]
         sanitized_context = {k: context.get(k) for k in allowed_keys if k in context}
@@ -31,12 +32,26 @@ class LLMAdvisor:
                 timeout=5.0 # Strict timeout as per policy
             )
             
+            end_time = datetime.utcnow()
+            latency = (end_time - start_time).total_seconds()
+            
             analysis_result = response.choices[0].message.content
-            self._log_interaction(sanitized_context, analysis_result)
+            
+            # Stability check: basic check if response is consistent in length/format
+            stability_score = 1.0 if len(analysis_result) > 50 else 0.5
+            
+            metrics = {
+                "latency_sec": latency,
+                "stability_score": stability_score,
+                "token_usage_estimate": len(prompt + analysis_result) // 4
+            }
+            
+            self._log_interaction(sanitized_context, analysis_result, metrics)
             return {
                 "analysis": analysis_result,
                 "timestamp": datetime.utcnow().isoformat() + "Z",
-                "mark_as_llm_sandbox": True
+                "mark_as_llm_sandbox": True,
+                "metrics": metrics
             }
         except Exception as e:
             error_msg = f"LLM Advisory Error: {str(e)}"
@@ -60,12 +75,13 @@ class LLMAdvisor:
         REMINDER: You have NO execution authority. Do not attempt to generate commands.
         """
 
-    def _log_interaction(self, request, response):
+    def _log_interaction(self, request, response, metrics=None):
         log_entry = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "request_snapshot": request,
             "response": response,
-            "llm_sandbox": True
+            "llm_sandbox": True,
+            "metrics": metrics
         }
         log_path = Path("runtime/llm_audit.json")
         log_path.parent.mkdir(parents=True, exist_ok=True)

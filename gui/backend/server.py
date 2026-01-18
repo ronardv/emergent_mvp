@@ -55,6 +55,7 @@ class Handler(BaseHTTPRequestHandler):
                     "diff_text": current_state.get("current_diff")
                 }
                 result = llm_sandbox.analyze_context(context)
+                result["context"] = context # Include context for preview
                 self.respond_json(result)
         elif self.path == "/" or self.path == "/index.html": self.serve_file("index.html", "text/html")
         elif self.path.endswith(".css"): self.serve_file(self.path.lstrip("/"), "text/css")
@@ -110,6 +111,12 @@ class Handler(BaseHTTPRequestHandler):
 
                 # 3. Consult Decision Core
                 current_state = get_status()
+                
+                # VERIFICATION STAGE LOCK: Force stage and block execution intents
+                if current_state.get("stage") == "VERIFICATION" or intent_packet.get("intent") == "START_VERIFICATION":
+                    if intent_packet.get("intent") not in ["TOGGLE_LLM_SANDBOX", "SET_AUTONOMY_MODE", "START_VERIFICATION"]:
+                        return self.respond_error(403, "Execution blocked: System locked in VERIFICATION mode.")
+                
                 decision = controller.decide(intent_packet, current_state)
 
                 # 4. Audit Log Decision
@@ -128,6 +135,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.respond_error(500, f"CONSTITUTIONAL_HALT: {const_check['reason']}")
 
                 # 6. Execution Isolation Layer
+                # VERIFICATION LOCK: Double check to prevent any execution
+                if current_state.get("stage") == "VERIFICATION":
+                     return self.respond_error(403, "Execution rights denied in VERIFICATION mode.")
+
                 # Tag with sandbox status
                 is_sandbox = sandbox_context.is_enabled()
                 decision["sandbox"] = is_sandbox
