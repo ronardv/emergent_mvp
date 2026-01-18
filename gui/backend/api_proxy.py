@@ -8,3 +8,11 @@ def get_log():
         "[ANALYZE] Reading files",
         "[ANALYZE] Found placeholders"
     ]}
+
+def handle_command(data):
+    # Forward to controller (stub call allowed)
+    command = data.get("command")
+    operator = data.get("operator")
+    context = data.get("context", {})
+    print(f"Command received: {command} from {operator}")
+    return {"status": "accepted"}
