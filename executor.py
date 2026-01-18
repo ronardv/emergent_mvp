@@ -1,8 +1,12 @@
 import uuid
 from datetime import datetime
+from core.runtime.failsafe import FailSafe
 
 class Executor:
     def __init__(self):
+        # Stage 9: Fail-Safe Activation
+        self.failsafe = FailSafe()
+        
         self.MODES = {
             "ANALYZE": "read_only",
             "PLAN": "simulation_only",
@@ -12,8 +16,7 @@ class Executor:
 
     def execute(self, decision_packet):
         """
-        Isolated execution logic.
-        Requires an accepted decision_packet from the controller.
+        Isolated execution logic with Fail-Safe checkpoints.
         """
         # 1. Validate decision packet
         if not decision_packet.get("accepted") or not decision_packet.get("execution_allowed"):
@@ -22,6 +25,11 @@ class Executor:
         stage = decision_packet.get("next_stage")
         execution_id = str(uuid.uuid4())
         
+        # Fail-Safe: PRE_EXECUTION
+        # Advisory only: check if stage is HALTED (example condition)
+        if not self.failsafe.check(stage == "HALTED"):
+            print(f"[FAILSAFE] Advisory block detected for stage: {stage}")
+
         # 2. Determine execution mode
         mode = self.MODES.get(stage, "restricted")
         
@@ -30,19 +38,19 @@ class Executor:
         side_effects = "none"
         
         if stage == "ANALYZE":
-            # read_only simulation
             artifacts.append("file_structure_map.json")
         elif stage == "PLAN":
-            # simulation_only
             artifacts.append("execution_plan.md")
         elif stage == "DIFF":
-            # diff_generation_only
             artifacts.append("changeset.diff")
         elif stage == "APPLY":
-            # sandboxed_apply simulation
             artifacts.append("apply_report.json")
             side_effects = "filesystem_mutation_simulated"
             
+        # Fail-Safe: POST_EXECUTION
+        if not self.failsafe.check(False): # Always true for now
+            pass
+
         return self._make_report(execution_id, stage, "success", artifacts, side_effects)
 
     def _make_report(self, execution_id, stage, status, artifacts, side_effects):
@@ -56,5 +64,4 @@ class Executor:
         }
 
     def apply_diff(self, diff, project_root):
-        # Legacy method kept for backward compatibility
         pass

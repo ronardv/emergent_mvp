@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 from controller import Controller
 from executor import Executor
 from validator import Validator
+from core.observability.observer import Observer
 from api_proxy import get_status, get_progress, get_phases, get_log
 
 BASE_DIR = os.path.dirname(__file__)
@@ -17,6 +18,8 @@ FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
 controller = Controller()
 executor = Executor()
 validator = Validator()
+# Stage 10: Observability Activation
+observer = Observer()
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -46,7 +49,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 # 2. Constitutional Check: Before Decision
                 const_check = validator.enforce_constitution({
-                    "gui_decision_detected": False # GUI only sends intent
+                    "gui_decision_detected": False
                 }, 'before_decision_accept')
                 
                 if const_check["status"] == "HALT":
@@ -74,10 +77,17 @@ class Handler(BaseHTTPRequestHandler):
                 # 6. Execution Isolation Layer
                 execution_report = executor.execute(decision)
                 
-                # 7. Audit Log Execution
+                # 7. Observability: Record state change
+                observer.record({
+                    "timestamp": execution_report["timestamp"],
+                    "stage": execution_report["stage"],
+                    "status": execution_report["status"]
+                })
+                
+                # 8. Audit Log Execution
                 print(f"[AUDIT] {execution_report['timestamp']} | {execution_report['execution_id']} | Status: {execution_report['status']}")
 
-                # 8. Respond
+                # 9. Respond
                 self.respond_json({
                     "ok": True,
                     "decision": decision,

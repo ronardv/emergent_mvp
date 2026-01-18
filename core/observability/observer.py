@@ -1,9 +1,6 @@
-class ObservationFrame:
-    pass
-
 class Observer:
-    def snapshot(self) -> ObservationFrame:
-        raise NotImplementedError
+    def __init__(self):
+        self.snapshots = []
 
-    def export(self) -> dict:
-        raise NotImplementedError
+    def record(self, state):
+        self.snapshots.append(state)

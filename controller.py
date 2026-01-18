@@ -1,13 +1,17 @@
 import uuid
 from datetime import datetime
+from core.audit.audit_trail import AuditTrail
 
 class Controller:
     def __init__(self, parser=None, validator=None, kernel=None, executor=None):
-        # Dependencies kept for compatibility, but core logic is now deterministic
+        # Dependencies kept for compatibility
         self.parser = parser
         self.validator = validator
         self.kernel = kernel
         self.executor = executor
+        
+        # Stage 8: Audit Trail Activation
+        self.audit_trail = AuditTrail()
         
         self.STAGES = [
             "IDLE", "ANALYZE", "ANALYZE_COMPLETE", "PLAN", "PLAN_COMPLETE",
@@ -25,26 +29,38 @@ class Controller:
 
     def decide(self, intent_packet, current_state):
         """
-        Deterministic decision core.
-        Input: intent_packet (dict), current_state (dict)
-        Output: decision_packet (dict)
+        Deterministic decision core with Audit Trail.
         """
         intent = intent_packet.get("intent")
         current_stage = current_state.get("stage", "IDLE")
         decision_id = str(uuid.uuid4())
+        command_id = intent_packet.get("command_id")
+        params = intent_packet.get("params", {})
         
-        # 1. Validate Intent exists in transitions
+        # Audit: INTENT_RECEIVED
+        self.audit_trail.log(command_id, intent, params, "RECEIVED")
+        
+        # 1. Validate Intent exists
         if intent not in self.TRANSITIONS:
-            return self._make_decision(decision_id, False, f"Unknown intent: {intent}", current_stage, False)
+            decision = self._make_decision(decision_id, False, f"Unknown intent: {intent}", current_stage, False)
+            self.audit_trail.log(command_id, intent, params, "REJECTED: UNKNOWN_INTENT")
+            return decision
             
         # 2. Validate Stage Transition
         transition = self.TRANSITIONS[intent]
         if current_stage not in transition["from"]:
-            return self._make_decision(decision_id, False, f"Intent {intent} not allowed in stage {current_stage}", current_stage, False)
+            decision = self._make_decision(decision_id, False, f"Intent {intent} not allowed in stage {current_stage}", current_stage, False)
+            self.audit_trail.log(command_id, intent, params, "REJECTED: INVALID_STAGE")
+            return decision
             
         # 3. Formulate Decision
         next_stage = transition["to"]
-        return self._make_decision(decision_id, True, "Intent accepted", next_stage, True)
+        decision = self._make_decision(decision_id, True, "Intent accepted", next_stage, True)
+        
+        # Audit: INTENT_ACCEPTED
+        self.audit_trail.log(command_id, intent, params, f"ACCEPTED: NEXT_STAGE={next_stage}")
+        
+        return decision
 
     def _make_decision(self, decision_id, accepted, reason, next_stage, execution_allowed):
         return {
@@ -57,6 +73,4 @@ class Controller:
         }
 
     def handle(self, user_input, state, project):
-        # Legacy handle method kept for backward compatibility if needed
-        # In the new model, the backend calls .decide() directly
         pass
