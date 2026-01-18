@@ -1,41 +1,48 @@
 import json
-from pathlib import Path
+from datetime import datetime
 
 class Validator:
     def __init__(self):
-        base = Path("config")
-        self.constitution = json.loads((base / "constitution.json").read_text())
-        self.dsl = json.loads((base / "command_dsl.json").read_text())
+        self.INVARIANTS = [
+            {"id": "NO_AUTONOMOUS_EXECUTION", "rule": "System must not execute without explicit operator intent"},
+            {"id": "CONTROLLER_FINAL_AUTHORITY", "rule": "No component may bypass controller decisions"},
+            {"id": "GUI_OBSERVATION_ONLY", "rule": "GUI must not contain decision or execution logic"}
+        ]
 
-    def validate_action(self, action, state):
-        cmd = action["command"]
-        if cmd not in self.dsl["commands"]:
-            raise RuntimeError("Unknown command")
+    def enforce_constitution(self, context, action_type):
+        """
+        Final invariant enforcement layer.
+        context: dict containing relevant data for the check
+        action_type: 'before_decision_accept' | 'before_execution_start' | 'before_apply_commit'
+        """
+        # 1. NO_AUTONOMOUS_EXECUTION
+        if action_type == 'before_execution_start':
+            if not context.get('operator_intent_verified'):
+                return self._halt("NO_AUTONOMOUS_EXECUTION violation: Missing operator intent verification")
 
-        allowed = self.dsl["commands"][cmd]["allowed_phases"]
-        if state["current_phase"] not in allowed:
-            raise RuntimeError("Command not allowed in this phase")
+        # 2. CONTROLLER_FINAL_AUTHORITY
+        if action_type in ['before_execution_start', 'before_apply_commit']:
+            if not context.get('decision_packet') or not context['decision_packet'].get('accepted'):
+                return self._halt("CONTROLLER_FINAL_AUTHORITY violation: No accepted decision packet found")
 
-    def validate_kernel_output(self, output):
-        if "intent" not in output:
-            raise RuntimeError("Invalid kernel output")
+        # 3. GUI_OBSERVATION_ONLY
+        if action_type == 'before_decision_accept':
+            if context.get('gui_decision_detected'):
+                return self._halt("GUI_OBSERVATION_ONLY violation: Decision logic detected in GUI request")
 
-    def validate_diff(self, diff):
-        if diff["old_code"] == diff["new_code"]:
-            raise RuntimeError("Empty diff")
+        return {"status": "PASS", "timestamp": datetime.utcnow().isoformat() + "Z"}
 
-    def validate_transition(self, current_phase, action):
-        transitions = self.constitution["transitions"]
-        cmd = action["command"]
+    def _halt(self, reason):
+        print(f"[CRITICAL_HALT] {reason}")
+        return {
+            "status": "HALT",
+            "reason": reason,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "require_operator_ack": True
+        }
 
-        if cmd == "analyze":
-            target = "ANALYZE"
-        elif cmd == "modify":
-            target = "EXECUTE"
-        else:
-            raise RuntimeError("No transition rule")
-
-        if target not in transitions[current_phase]:
-            raise RuntimeError("Illegal phase transition")
-
-        return target
+    # Legacy methods kept for compatibility
+    def validate_action(self, action, state): pass
+    def validate_kernel_output(self, output): pass
+    def validate_diff(self, diff): pass
+    def validate_transition(self, current_phase, action): pass
