@@ -73,4 +73,56 @@ class Controller:
         }
 
     def handle(self, user_input, state, project):
-        pass
+        from advisor import run_advisor
+        
+        # Simple command parsing for basic interaction
+        parts = user_input.strip().split()
+        if not parts:
+            return state, "Empty command", "No advice"
+            
+        intent = parts[0].upper()
+        
+        # Map simple commands to system intents
+        intent_map = {
+            "ANALYZE": "START_ANALYSIS",
+            "PLAN": "REQUEST_PLAN",
+            "DIFF": "REQUEST_DIFF",
+            "APPLY": "APPLY_DIFF",
+            "STOP": "STOP_EXECUTION",
+            "RESET": "ROLLBACK"
+        }
+        
+        mapped_intent = intent_map.get(intent, intent)
+        
+        # Create a mock intent packet
+        intent_packet = {
+            "command_id": str(uuid.uuid4()),
+            "intent": mapped_intent,
+            "params": {"raw_input": user_input}
+        }
+        
+        # Get decision from controller
+        decision = self.decide(intent_packet, state)
+        
+        # Update state based on decision
+        if decision["accepted"]:
+            state["stage"] = decision["next_stage"]
+            result = f"Transitioned to {decision['next_stage']}: {decision['reason']}"
+            
+            # If execution is allowed, run the executor
+            if decision["execution_allowed"] and self.executor:
+                try:
+                    exec_report = self.executor.execute(decision)
+                    result += f"\nExecution Result: {exec_report['status']}"
+                    if exec_report['artifacts_generated']:
+                        result += f"\nArtifacts: {', '.join(exec_report['artifacts_generated'])}"
+                except Exception as e:
+                    result += f"\nExecution Error: {str(e)}"
+        else:
+            result = f"Rejected: {decision['reason']}"
+            
+        # Get advisor output
+        advisor_data = run_advisor(user_input, state.get("stage"), intent)
+        advisor_output = f"Advisor: {advisor_data['analysis']}"
+        
+        return state, result, advisor_output

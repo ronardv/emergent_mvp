@@ -49,6 +49,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const stopBtn = document.getElementById('stopBtn');
     if (stopBtn) stopBtn.onclick = () => sendIntent('STOP_EXECUTION');
+
+    const autonomyToggle = document.getElementById('autonomy_toggle');
+    if (autonomyToggle) {
+        autonomyToggle.onchange = (e) => {
+            sendIntent('TOGGLE_AUTONOMY', { enabled: e.target.checked });
+        };
+        // Initial sync
+        get('/api/autonomy_status').then(data => {
+            if (data) autonomyToggle.checked = data.enabled;
+        });
+    }
     
     const resultBtns = document.querySelectorAll('.result .buttons button');
     resultBtns.forEach(btn => {

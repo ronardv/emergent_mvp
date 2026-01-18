@@ -10,6 +10,7 @@ from executor import Executor
 from validator import Validator
 from core.observability.observer import Observer
 from api_proxy import get_status, get_progress, get_phases, get_log
+from core.autonomy.autonomy_manager import AutonomyManager
 
 BASE_DIR = os.path.dirname(__file__)
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
@@ -20,6 +21,7 @@ executor = Executor()
 validator = Validator()
 # Stage 10: Observability Activation
 observer = Observer()
+autonomy_manager = AutonomyManager()
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -28,6 +30,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/progress": self.respond_json(get_progress())
         elif self.path == "/api/phases": self.respond_json(get_phases())
         elif self.path == "/api/log": self.respond_json(get_log())
+        elif self.path == "/api/autonomy_status": self.respond_json({"enabled": autonomy_manager.get_status()})
         elif self.path == "/" or self.path == "/index.html": self.serve_file("index.html", "text/html")
         elif self.path.endswith(".css"): self.serve_file(self.path.lstrip("/"), "text/css")
         elif self.path.endswith(".js"): self.serve_file(self.path.lstrip("/"), "application/javascript")
@@ -41,6 +44,12 @@ class Handler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             try:
                 intent_packet = json.loads(post_data)
+                
+                # Handle TOGGLE_AUTONOMY intent
+                if intent_packet.get("intent") == "TOGGLE_AUTONOMY":
+                    enabled = intent_packet.get("params", {}).get("enabled", False)
+                    result = autonomy_manager.set_status(enabled)
+                    return self.respond_json({"ok": True, "result": result})
                 
                 # 1. Basic Envelope Validation
                 required = ["command_id", "intent", "timestamp", "params"]
@@ -122,4 +131,5 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps({"ok": False, "error": message}).encode())
 
-HTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
+if __name__ == "__main__":
+    HTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
