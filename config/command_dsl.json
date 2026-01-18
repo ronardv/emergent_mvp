@@ -1,0 +1,10 @@
+{
+  "commands": {
+    "analyze": {
+      "allowed_phases": ["INIT", "ANALYZE"]
+    },
+    "modify": {
+      "allowed_phases": ["ANALYZE"]
+    }
+  }
+}

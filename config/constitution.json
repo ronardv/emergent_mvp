@@ -1,0 +1,8 @@
+{
+  "phases": ["INIT", "ANALYZE", "EXECUTE"],
+  "transitions": {
+    "INIT": ["ANALYZE"],
+    "ANALYZE": ["EXECUTE", "ANALYZE"],
+    "EXECUTE": ["ANALYZE"]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "model": "dummy",
+  "max_tokens": 2048,
+  "advisor": {
+    "enabled": true,
+    "mode": "read_only",
+    "model": "gpt-4o-mini",
+    "temperature": 0.3,
+    "max_tokens": 300,
+    "permissions": []
+  }
+}

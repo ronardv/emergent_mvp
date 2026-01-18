@@ -1,0 +1,59 @@
+body {
+    margin: 0;
+    background: #0d0f12;
+    color: #e5e7eb;
+    font-family: JetBrains Mono, monospace;
+    font-size: 14px;
+}
+
+#app {
+    padding: 16px;
+    display: grid;
+    gap: 16px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+}
+
+.main {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 16px;
+}
+
+.status,
+.log {
+    background: #111318;
+    padding: 12px;
+}
+
+.bar {
+    height: 10px;
+    background: #333;
+    margin: 8px 0;
+}
+
+#progressFill {
+    height: 100%;
+    width: 45%;
+    background: #3b82f6;
+}
+
+.log {
+    background: #000;
+    height: 220px;
+    overflow: auto;
+}
+
+.thinking {
+    color: #3b82f6;
+    animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.3; }
+    50% { opacity: 1; }
+    100% { opacity: 0.3; }
+}
