@@ -1,4 +1,4 @@
-async function get(u){const r=await fetch(u);return r.ok?r.json():null}
+async function get(u){try{const r=await fetch(u);return r.ok?r.json():null}catch(e){return null}}
 
 async function sendIntent(intent, params = {}) {
     const payload = {
@@ -7,12 +7,16 @@ async function sendIntent(intent, params = {}) {
         timestamp: new Date().toISOString(),
         params: params
     };
-    const r = await fetch('/api/intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    return r.json();
+    try {
+        const r = await fetch('/api/intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return r.json();
+    } catch(e) {
+        return {ok: false, error: "Connection error"};
+    }
 }
 
 async function refresh(){
@@ -25,7 +29,6 @@ async function refresh(){
         if (toggle) toggle.checked = as.sandbox_mode;
         document.body.classList.toggle('sandbox-active', as.sandbox_mode);
 
-        // Handle Verification Mode UI
         const isVerification = as.gui_mode === 'sandbox_advisory';
         document.body.classList.toggle('verification-mode', isVerification);
 
@@ -43,30 +46,38 @@ async function refresh(){
                 }
             });
         } else {
-            if (advisoryContent) advisoryContent.textContent = 'LLM Sandbox Disabled';
-            if (contextData) contextData.textContent = 'LLM Sandbox Disabled';
+            if (advisoryContent) advisoryContent.textContent = '';
+            if (contextData) contextData.textContent = '';
         }
     }
 
     const stageEl = document.getElementById('currentStage');
-    if (stageEl) stageEl.textContent=s?.stage||'НЕТ ДАННЫХ';
+    if (stageEl) {
+        if (s === null) stageEl.textContent = 'DISCONNECTED';
+        else stageEl.textContent = s.stage || 'НЕТ ДАННЫХ';
+    }
+    
     const progressEl = document.getElementById('progressBar');
-    if (progressEl) progressEl.style.width=p?p.percent+'%':'0%';
+    if (progressEl) progressEl.style.width=(p && p.percent !== undefined) ? p.percent+'%' : '0%';
+    
     const list=document.getElementById('phases');
     if (list) {
         list.innerHTML='';
-        if(ph){
+        if(ph && Object.keys(ph).length > 0){
             for(const k in ph){
                 const li=document.createElement('li');
                 li.textContent=k+' — '+ph[k]+'%';
                 list.appendChild(li);
             }
-        }else{
-            list.innerHTML='<li>НЕТ ДАННЫХ</li>';
         }
     }
+    
     const logEl = document.getElementById('logOutput');
-    if (logEl) logEl.textContent=l?l.lines.join('\n'):'НЕТ ДАННЫХ';
+    if (logEl) {
+        if (l === null) logEl.textContent = 'DISCONNECTED';
+        else if (l.lines && l.lines.length > 0) logEl.textContent = l.lines.join('\n');
+        else logEl.textContent = 'НЕТ ДАННЫХ';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -88,13 +99,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (confirm(`Switch to ${newMode} mode?`)) {
                 sendIntent('SET_AUTONOMY_MODE', { mode: newMode });
             } else {
-                // Revert selection if cancelled
                 get('/api/autonomy_status').then(data => {
                     if (data) modeSwitch.value = data.gui_mode;
                 });
             }
         };
-        // Initial sync
         get('/api/autonomy_status').then(data => {
             if (data) modeSwitch.value = data.gui_mode || 'E2';
         });
@@ -105,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         llmSandboxToggle.onchange = (e) => {
             const enabled = e.target.checked;
             if (enabled) {
-                if (confirm("Enable LLM Sandbox (Advisory Mode)? This will send context to LLM for analysis.")) {
+                if (confirm("Enable LLM Sandbox (Advisory Mode)?")) {
                     sendIntent('TOGGLE_LLM_SANDBOX', { enabled: true });
                 } else {
                     e.target.checked = false;

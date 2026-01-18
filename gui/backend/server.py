@@ -49,12 +49,16 @@ class Handler(BaseHTTPRequestHandler):
                 # Prepare read-only context snapshot
                 current_state = get_status()
                 context = {
-                    "task_text": "Current GUI Task", # In a real app, this would come from state
+                    "task_text": "", # Removed hardcoded "Current GUI Task"
                     "current_stage": current_state.get("stage"),
                     "plan_text": current_state.get("current_plan"),
                     "diff_text": current_state.get("current_diff")
                 }
-                result = llm_sandbox.analyze_context(context)
+                # Only analyze if there is something to analyze
+                if any(context.values()):
+                    result = llm_sandbox.analyze_context(context)
+                else:
+                    result = {"analysis": ""}
                 result["context"] = context # Include context for preview
                 self.respond_json(result)
         elif self.path == "/" or self.path == "/index.html": self.serve_file("index.html", "text/html")
